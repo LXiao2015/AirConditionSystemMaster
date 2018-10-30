@@ -1,0 +1,65 @@
+//主界面相关，选主从机
+package com.bupt.air.airconditionsystem;
+
+import android.support.v7.app.ActionBarActivity;
+import android.os.Bundle;//Bundle是Android开发中的一个类,用于Activity之间传输数据
+import android.view.Menu;
+import android.view.MenuItem;
+import android.widget.Button;
+import android.view.View;
+import android.content.Intent;
+
+
+public class AirConditionSystem extends ActionBarActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);//可以调用onSaveInstanceState()来保存当前activity的状态信息
+        setContentView(R.layout.activity_air_condition_system);//setContentView函数：运行的界面由activity_air_condition_system.xml来指定布局
+
+        final Button button1 = (Button) findViewById(R.id.button1);//主机，findViewById把java文件里的变量与xml里的控件绑定
+
+        final Button button2 = (Button) findViewById(R.id.button2);//从机
+
+        button1.setOnClickListener(new View.OnClickListener() {//Listener是监听器，如果发生了点击动作，就执行下面代码
+
+            @Override
+            public void onClick(View view) {
+                Intent intent1 = new Intent(AirConditionSystem.this, Host.class);//this是当前对象的引用.class是指向要跳转的Activity
+                startActivity(intent1);//启动Activity
+            }
+        });
+
+        button2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Intent intent2 = new Intent(AirConditionSystem.this, Slave.class);
+                startActivity(intent2);
+            }
+        });
+
+    }
+
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.menu_air_condition_system, menu);//Inflate()作用就是将xml定义的一个布局找出来,但仅仅是找出来而且隐藏的,没有找到的同时并显示功能
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle action bar item clicks here. The action bar will
+        // automatically handle clicks on the Home/Up button, so long
+        // as you specify a parent activity in AndroidManifest.xml.
+        int id = item.getItemId();
+
+        //noinspection SimplifiableIfStatement
+        if (id == R.id.action_settings) {
+            return true;
+        }
+
+        return super.onOptionsItemSelected(item);
+    }
+}

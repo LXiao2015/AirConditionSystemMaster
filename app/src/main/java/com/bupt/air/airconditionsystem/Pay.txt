@@ -1,0 +1,116 @@
+﻿package com.bupt.air.airconditionsystem;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.os.Bundle;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+/**
+ * Created by OnlySaturday on 2015/6/2.
+ */
+public class Pay extends Activity{
+    TextView info = null;//输出到屏幕
+    RadioGroup group = null;//RadioGroup是可以容纳多个RadioButton的容器
+    RadioButton flush1 = null, flush2 = null, flush3 = null;//单选
+    DatabaseHelper dbHelper = null;
+    SQLiteDatabase db = null;
+    String str = "", temp = "", basic = "RoomID--State--Speed--TarTemp--Cost--Timestamp\n";
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.pay);
+
+        Bundle bundle = this.getIntent().getExtras();  //getExtras()得到intent传来的信息
+        temp = bundle.getString("xls");//接收要被输出的表单
+        info = (TextView) findViewById(R.id.info1);
+        group = (RadioGroup) findViewById(R.id.group);//java文件里申请的类型的变量和xml文件的控件做一个绑定
+        flush1 = (RadioButton) findViewById(R.id.flush1);
+        flush2 = (RadioButton) findViewById(R.id.flush2);
+        flush3 = (RadioButton) findViewById(R.id.flush3);
+        group.setOnCheckedChangeListener(xlsListener);//监听器，当xls改变的时候，执行下面的函数
+        dbHelper = new DatabaseHelper(this, "AirConditionSystem.db");
+        db = dbHelper.getWritableDatabase();
+
+    }
+
+    private RadioGroup.OnCheckedChangeListener xlsListener = new RadioGroup.OnCheckedChangeListener() {
+        @Override
+        public void onCheckedChanged(RadioGroup group, int checkedId) {
+            /*
+            Cursor p = null;  //光标
+            int num, onoff, speed, tarTemp;
+            double cost;
+            String str = "", msg = "";
+            Date date = null;
+            */
+            if(checkedId == flush3.getId()){  //每月
+                str = basic + str;
+                info.setText(str);
+                /*
+                p = db.query("XLS", new String[]{"roomNum", "onoff", "speed", "tarTemp", "cost", "'mytime'"}, null, null, null, null, null, null);
+                while (p.moveToNext()) {//在数据库中逐条查询
+                    num = p.getInt(p.getColumnIndex("roomNum"));
+                    onoff = p.getInt(p.getColumnIndex("onoff"));
+                    speed = p.getInt(p.getColumnIndex("speed"));
+                    tarTemp = p.getInt(p.getColumnIndex("tarTemp"));
+                    cost = p.getDouble(p.getColumnIndex("cost"));
+                    str = p.getString(p.getColumnIndex("mytime"));
+
+                    msg += num + " " + onoff + " " + speed + " " + tarTemp + " " + cost + " " + str + "\n";
+                }
+
+                info.setText(msg);
+                */
+            }
+            else if(checkedId == flush2.getId()){  //每周
+                str = basic + str;
+                info.setText(str);
+                /*
+                p = db.query("XLS", new String[]{"roomNum", "onoff", "speed", "tarTemp", "cost", "'mytime'"}, null, null, null, null, null, null);
+                while (p.moveToNext()) {
+                    num = p.getInt(p.getColumnIndex("roomNum"));
+                    onoff = p.getInt(p.getColumnIndex("onoff"));
+                    speed = p.getInt(p.getColumnIndex("speed"));
+                    tarTemp = p.getInt(p.getColumnIndex("tarTemp"));
+                    cost = p.getDouble(p.getColumnIndex("cost"));
+                    str = p.getString(p.getColumnIndex("mytime"));
+
+                    msg += num + " " + onoff + " " + speed + " " + tarTemp + " " + cost + " " + str + "\n";
+                }
+
+                info.setText(msg);
+                */
+            } else { //默认都是看当日的
+                str = basic + str;
+                info.setText(str);
+                /*msg = "roomNum  onoff  speed  tarTemp  cost\n";
+                p = db.rawQuery("select roomNum,onoff,speed,tarTemp from XLS",null);
+                while (p.moveToNext()) {
+                    num = p.getInt(p.getColumnIndex("roomNum"));
+                    onoff = p.getInt(p.getColumnIndex("onoff"));
+                    speed = p.getInt(p.getColumnIndex("speed"));
+                    tarTemp = p.getInt(p.getColumnIndex("tarTemp"));
+                    //cost = p.getInt(p.getColumnIndex("cost"));
+
+                    msg += num + "                   " + onoff + "            " + speed + "            " + tarTemp + "         "  + "\n";
+                }
+
+                info.setText(msg);*/
+            }
+
+
+        }
+    };
+
+
+}

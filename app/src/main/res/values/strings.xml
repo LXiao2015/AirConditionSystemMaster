@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">GreenWood</string>
+    <string name="hello_world">Hello world!</string>
+    <string name="action_settings">Settings</string>
+    <string name="InitProgram">欢迎使用绿林(GreenWood)分布式温控系统，请先设定设备属性：</string>
+    <string name="host_bar">主机界面</string>
+    <string name="slave_bar">从机界面</string>
+    <string name="pay">消费清单</string>
+</resources>

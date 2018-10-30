@@ -1,0 +1,478 @@
+﻿package com.bupt.air.airconditionsystem;
+
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
+import android.support.v7.app.ActionBarActivity;
+import android.os.Bundle;
+import android.text.format.Time;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.MotionEvent;
+import android.view.View;
+import android.widget.ArrayAdapter;
+import android.widget.Button;
+import android.widget.CompoundButton;
+import android.widget.LinearLayout;
+import android.widget.ListView;
+import android.widget.Spinner;
+import android.widget.Switch;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.w3c.dom.Text;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
+import java.net.Socket;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+
+
+public class Slave extends ActionBarActivity{  //ActionBarActivity默认有个标题栏
+//声明变量
+    private static final int SERVERPORT = 8888;
+    private static final String SERVER_IP = "10.205.24.170";
+    private Socket socket = null;
+    private Button tempup = null, tempdown = null, speedup = null, speeddown = null;
+    private Switch on = null;
+    private TextView textView = null;//输出到屏幕
+    private String command = "";
+    private String text = "";
+    JSONObject jsonObj = null;
+    JSONArray jArray = null;
+    private int onoff;  //从机开关标志
+    private int mode;  //工作模式，由主机决定，从机无法改变，只能查看
+    private int roomNum = -1;  //房间号，连接成功后由主机分配
+    private int roomNumget;  //后来获取到的消息可能并不是这个房间的，因此需要和roomNum
+    private double temp;  //当前温度
+    private double tarTemp;  //目标温度
+    private int speed;  //风速
+    private double cost;  //当前消费
+    private int requestType;  //请求类型，为了方便json分析管理
+    private int HostOnOff;  //主机开关标志，主机不开亦无法操作
+    private Handler mHandler = new Handler(){//用于处理接收的消息，Android的机制要求网络通信和UI更新必须要分离，所以采用多线程，一个线程发一个线程收一个主线程（主界面）
+
+        @Override
+        public void handleMessage(Message msg){//收消息的线程收到消息以后把消息打包成(Message msg)这个类型，然后通过Handler发给系统处理
+//这个handler处理发来的消息，我们发的都是json串，所以就直接引用了JSON的包（相当于头文件），直接用写好的函数解析，凡是解析json的时候都要放到一个try catch里，因为涉及到IO
+//显示收到的内容
+            try {
+                jArray = new JSONArray(msg.obj.toString());//获取收到的Json串，jArray是json数组
+
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+
+            if(jArray != null)//收到的消息不是空，就开始解析这个数组
+                for(int i = 0; i < jArray.length(); i++)
+                {
+                    //获取每一个json对象
+//在安卓里其实每次只发了一个json对象，这个循环是为了和ios实现连接才加的，因为ios可以同时发多个json对象过来，我们做一个循环然后一次性解析完把值改过来
+
+                    try {
+                        jsonObj = jArray.getJSONObject(i);
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+
+                    try {
+                        requestType = jsonObj.getInt("requestType");
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                    try {
+                        roomNumget = jsonObj.getInt("roomNum");
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+
+                    if(roomNum == -1)  //如果从机还没有分配房间号，只响应回复加入的请求类型
+                    {
+                        if(requestType == Command.HostCommandTypeAdd){
+                            roomNum = roomNumget;
+                            try {
+                                onoff = jsonObj.getInt("on");
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                            try {
+                                mode = jsonObj.getInt("mode");
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+
+                            try {
+                                temp = jsonObj.getDouble("temp");
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                            try {
+                                tarTemp = jsonObj.getDouble("tarTemp");
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                            try {
+                                speed = jsonObj.getInt("speed");
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                            try {
+                                cost = jsonObj.getDouble("cost");//获得一个double类型的，键为cost
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+
+                            try {
+                                HostOnOff = jsonObj.getInt("host");//获得一个int类型的，键为host
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                            if(onoff == Command.Off)//如果当前是关机的话，就把从机界面的按钮置到关上（false），然后把它的参数显示出来shoInfo
+
+                                on.setChecked(false);
+                            showInfo(onoff, roomNum, mode, temp, tarTemp, speed, cost);
+                        }
+                    }
+                    else{  //如果已经有房间号了
+                        if(roomNum == roomNumget){
+                            //确认发送的消息是自己房间的再去获取每一个对象的值并更新
+                            try {
+                                onoff = jsonObj.getInt("on");
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                            try {
+                                mode = jsonObj.getInt("mode");
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+
+                            try {
+                                temp = jsonObj.getDouble("temp");
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                            try {
+                                tarTemp = jsonObj.getDouble("tarTemp");
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                            try {
+                                speed = jsonObj.getInt("speed");
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                            try {
+                                cost = jsonObj.getDouble("cost");
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+
+                            try {
+                                HostOnOff = jsonObj.getInt("host");
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                            if(onoff == Command.Off)
+                                on.setChecked(false);
+                            showInfo(onoff, roomNum, mode, temp, tarTemp, speed, cost);
+                        }
+                    }
+                }
+        }
+    };
+
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);//调用super构造方法，程序启动时执行的第一个函数，是入口，初始化在这里完成
+        setContentView(R.layout.slave_layout);//setContentView函数：运行的界面由slave_layout.xml来指定布局
+
+        onoff = Command.Off;  //默认关闭
+        HostOnOff = Command.Off;//默认关闭
+        on = (Switch) findViewById(R.id.on);//findViewById:java文件里申请的类型的变量和xml文件的控件做一个绑定
+        tempup = (Button) findViewById(R.id.tempup);
+        tempdown = (Button) findViewById(R.id.tempdown);
+        speedup = (Button) findViewById(R.id.speedup);
+        speeddown = (Button) findViewById(R.id.speeddown);
+        textView = (TextView) findViewById(R.id.textView);
+        on.setOnCheckedChangeListener(turnOnOff);
+        tempup.setOnClickListener(watcher);//添加点击监听器，当控件被点击的时候，可以执行一些代码
+        tempdown.setOnClickListener(watcher);
+        speedup.setOnClickListener(watcher);
+        speeddown.setOnClickListener(watcher);
+
+        init();
+    }
+
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.menu_air_condition_system, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {  //当前activity添加菜单
+        // Handle action bar item clicks here. The action bar will
+        // automatically handle clicks on the Home/Up button, so long
+        // as you specify a parent activity in AndroidManifest.xml.
+        int id = item.getItemId();
+
+        //noinspection SimplifiableIfStatement
+        if (id == R.id.action_settings) {  //根据菜单ID做出相应操作
+            return true;
+        }
+
+        return super.onOptionsItemSelected(item);
+    }
+
+    //开关机设置
+    private CompoundButton.OnCheckedChangeListener turnOnOff = new CompoundButton.OnCheckedChangeListener() {
+//当用户拨开关机的按钮的时候，首先要判断主机是否开机了
+        @Override
+        public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+            if(HostOnOff == Command.Off) {  //主机没开机的话，会给提示，并且你按的那一下无效，被置到false状态
+                Toast.makeText(Slave.this, "主机未开启！", Toast.LENGTH_SHORT).show();  //Toast显示的时间有限,过一定的时间就会自动消失
+                buttonView.setChecked(false);
+            }
+            else {//否则的话就构建一个开机或关机报文command
+                if(isChecked){
+                    //开机
+                    command = "msg-[{\"requestType\":" + Command.SlaveCommandTypeSet + ",\"on\":" + Command.On + ",\"roomNum\":" + roomNum + "}]";
+                } else {
+                    //关机
+                    command = "msg-[{\"requestType\":" + Command.SlaveCommandTypeSet + ",\"on\":" + Command.Off + ",\"roomNum\":" + roomNum + "}]";
+                }
+
+                knockSend();//knockSend是发送：knocksend其实就是开了一个线程，然后发消息，调刚才的sendMessage函数
+            }
+        }
+    };
+
+    private View.OnClickListener watcher = new View.OnClickListener() {//Listener watcher的实现，就是我们onCreate绑定的时候都是绑定的watcher，watcher根据他们的id的不同来决定交给哪个函数处理
+        @Override
+        public void onClick(View v) {
+            switch (v.getId())
+            {
+                case R.id.tempup:
+                    addTemp();
+                    break;
+                case R.id.tempdown:
+                    deTemp();
+                    break;
+                case R.id.speedup:
+                    addSpeed();
+                    break;
+                case R.id.speeddown:
+                    deSpeed();
+                    break;
+                default:
+                    System.out.println("Watcher Error!");
+                    break;
+            }
+        }
+    };
+
+    //目标温度加
+    private void addTemp(){
+        if((onoff == Command.On || onoff == Command.Standby) && HostOnOff == Command.On) {
+            switch (mode) {
+                case Command.Hot://判断请求是否合理，不合理的话就给提醒，合理的话就构造报文然后发出去
+                    if (tarTemp + 1 > Command.Temp_Hot_High)
+                        Toast.makeText(Slave.this, "当前模式最大温度设定30℃", Toast.LENGTH_SHORT).show();
+                    else {
+                        command = "msg-[{\"roomNum\":" + roomNum + ",\"tarTemp\":" + (tarTemp + 1) + ",\"requestType\":" + Command.SlaveCommandTypeSet + "}]";
+                        knockSend();
+                    }
+                    break;
+                case Command.Cool:
+                    if (tarTemp + 1 > Command.Temp_Cool_High)
+                        Toast.makeText(Slave.this, "当前模式最大温度设定25℃", Toast.LENGTH_SHORT).show();
+                    else {
+                        command = "msg-[{\"roomNum\":" + roomNum + ",\"tarTemp\":" + (tarTemp + 1) + ",\"requestType\":" + Command.SlaveCommandTypeSet + "}]";
+                        knockSend();
+                    }
+                    break;
+                default:
+                    System.out.println("Mode error!");
+                    break;
+            }
+        }
+        else
+            Toast.makeText(Slave.this, "尚未开机，操作无效！", Toast.LENGTH_SHORT).show();
+    }
+
+    //目标温度减
+    private void deTemp(){
+        if((onoff == Command.On || onoff == Command.Standby)&& HostOnOff == Command.On) {
+            switch (mode) {
+                case Command.Hot:
+                    if (tarTemp - 1 < Command.Temp_Hot_Low)
+                        Toast.makeText(Slave.this, "当前模式最低温度设定25℃", Toast.LENGTH_SHORT).show();
+                    else {
+                        command = "msg-[{\"roomNum\":" + roomNum + ",\"tarTemp\":" + (tarTemp - 1) + ",\"requestType\":" + Command.SlaveCommandTypeSet + "}]";
+                        knockSend();
+                    }
+                    break;
+                case Command.Cool:
+                    if (tarTemp - 1 < Command.Temp_Cool_Low)
+                        Toast.makeText(Slave.this, "当前模式最低温度设定18℃", Toast.LENGTH_SHORT).show();
+                    else {
+                        command = "msg-[{\"roomNum\":" + roomNum + ",\"tarTemp\":" + (tarTemp - 1) + ",\"requestType\":" + Command.SlaveCommandTypeSet + "}]";
+                        knockSend();
+                    }
+                    break;
+                default:
+                    System.out.println("Mode error!");
+                    break;
+            }
+        }
+        else
+            Toast.makeText(Slave.this, "尚未开机，操作无效！", Toast.LENGTH_SHORT).show();
+    }
+
+    //风速加
+    private void addSpeed(){
+        if((onoff == Command.On || onoff == Command.Standby) && HostOnOff == Command.On) {
+            if (speed + 1 > Command.Speed_High)
+                Toast.makeText(Slave.this, "已经在最高风速！", Toast.LENGTH_SHORT).show();
+            else {
+                command = "msg-[{\"roomNum\":" + roomNum + ",\"speed\":" + (speed + 1) + ",\"requestType\":" + Command.SlaveCommandTypeSet + "}]";
+                knockSend();
+            }
+        }
+        else
+            Toast.makeText(Slave.this, "尚未开机，操作无效！", Toast.LENGTH_SHORT).show();
+    }
+
+    //风速减
+    private void deSpeed(){
+        if((onoff == Command.On || onoff == Command.Standby) && HostOnOff == Command.On) {
+            if (speed - 1 < Command.Speed_Low)
+                Toast.makeText(Slave.this, "已经在最低风速！", Toast.LENGTH_SHORT).show();
+            else {
+                command = "msg-[{\"roomNum\":" + roomNum + ",\"speed\":" + (speed - 1) + ",\"requestType\":" + Command.SlaveCommandTypeSet + "}]";
+                knockSend();
+            }
+        }
+        else
+            Toast.makeText(Slave.this, "尚未开机，操作无效！", Toast.LENGTH_SHORT).show();
+    }
+
+    //通知发送线程发送指令
+    private void knockSend(){
+        ThreadPoolUtil.getInstance().execute(new Runnable() {
+            @Override
+            public void run() {
+                sendMessage();
+            }
+        });
+    }
+
+    //初始化Socket连接，并开始接收信息
+    public void init(){
+        ThreadPoolUtil.getInstance().execute(new Runnable() {//开一个线程，为了优化程序，不要一直开关线程，我们用了线程池，先去ThreadPool里看看有没有线程，没有空闲线程就开，有就取，然后执行run()函数里的内容
+            @Override
+            public void run() {
+                try {
+                    socket = new Socket(SERVER_IP, SERVERPORT);//先申请socket建立连接
+                    DataOutputStream out = new DataOutputStream(  //然后开一个输出流，把我们的注册报文写到输出流里
+                            socket.getOutputStream());
+                    command = "choosePrio-1";//注册报文，告诉python服务器我是从机
+                    out.write(command.getBytes("UTF-8"));//write就执行了一个发送的动作
+                    command = "msg-[{\"requestType\":" + Command.SlaveCommandTypeAdd + "}]";//给主机发一个加入请求
+                    out.write(command.getBytes("UTF-8"));
+                    receiveMessage();//网络方面的初始化基本就结束了，开始收消息
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+    }
+
+    //接收主机信息
+    public void receiveMessage(){
+        try{
+            while(true){
+                DataInputStream input = new DataInputStream(socket.getInputStream());//开一个输入流
+                byte[] buffer;
+                buffer = new byte[input.available()];
+                if(buffer.length != 0){
+                    // 读取缓冲区
+                    input.read(buffer);//接来自socket的信息
+                    String msg = new String(buffer, "UTF-8");//用一个buffer来接，注意转码，不然中文会乱码。
+                    Message m = new Message();
+                    m.obj = msg;
+                    mHandler.sendMessage(m);//放到一个Message类型的对象里，交给mHandler进行处理
+                }
+            }
+        }catch (Exception e) {
+            // TODO: handle exception
+            e.printStackTrace();
+        }
+    }
+
+    //向主机发送信息
+    public void sendMessage(){
+        try {
+            //向服务器端发送数据
+            DataOutputStream out = new DataOutputStream(
+                    socket.getOutputStream());
+            out.write(command.getBytes("UTF-8"));//command是全局变量
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    protected void onDestroy(){
+        if(socket != null)
+            try {
+                socket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        socket = null;
+        super.onDestroy();//按手机的返回键的时候，这个程序就退出，退出的时候要执行的，关闭socket连接，并且置空
+    }
+
+    private void showInfo(int onoff, int roomNum, int mode, double temp, double tarTemp, int speed, double cost){
+        String text = "";
+
+        if(onoff == Command.On)
+            text = "开关机：开";
+        else if(onoff == Command.Off)
+            text = "开关机：关";
+        else if(onoff == Command.Standby)
+            text = "开关机：待机";
+        else
+            text = "开关机：Error";
+        text += "\n房间号：" + roomNum;
+        if(mode == Command.Cool)
+            text += "\n工作模式：制冷";
+        else if(mode == Command.Hot)
+            text += "\n工作模式：制热";
+        else
+            text += "\n工作模式：Error";
+        text += "\n当前温度：" + String.format("%.1f", temp) + "\n目标温度：" + String.format("%.1f", tarTemp) + "\n当前风速：" + speed + "\n消费金额：" + cost;
+        textView.setText(text);  //输出到屏幕
+    }
+}
